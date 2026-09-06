@@ -20,3 +20,8 @@ Go to the Crosspoint Web installer: [Web Flasher](https://crosspointreader.com/#
 Select your device (only Xteink X3/X4 are supported)
 
 Click "custom .bin" and upload your .bin file that you just downloaded, and click Flash.
+
+
+**CREDITS**
+
+Thank you to [zakerytclarke](https://github.com/zakerytclarke) for making Crosspoint-apps, which this is forked from.
