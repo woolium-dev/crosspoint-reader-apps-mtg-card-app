@@ -21,7 +21,8 @@ class MtgCardActivity final : public Activity {
 
   std::string searchQuery;
   std::string currentCardName;
-  std::string currentBmpPath;
+  std::vector<std::string> currentBmpPaths;
+  int currentFaceIndex = 0;
   std::string errorMessage;
 
   bool pendingFetch = false;
@@ -34,7 +35,7 @@ class MtgCardActivity final : public Activity {
 
   // Results written by the background fetch task, applied on the next loop().
   std::string bgCardName;
-  std::string bgBmpPath;
+  std::vector<std::string> bgBmpPaths;
 
   void loadCachedCardsList();
   void performBackgroundFetch();

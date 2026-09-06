@@ -73,7 +73,10 @@ void MtgCardActivity::loadCachedCardsList() {
   for (const auto& file : files) {
     std::string filename = file.c_str();
     if (filename.length() > 4 && filename.substr(filename.length() - 4) == ".bmp") {
-      cachedCards.push_back(filename.substr(0, filename.length() - 4));
+      // Filter out secondary face files from showing up as duplicate entries in the menu
+      if (filename.find("_face") == std::string::npos) {
+        cachedCards.push_back(filename.substr(0, filename.length() - 4));
+      }
     }
   }
   std::sort(cachedCards.begin(), cachedCards.end());
@@ -88,6 +91,7 @@ void MtgCardActivity::onEnter() {
   loadCachedCardsList();
   state = MtgCardState::CardList;
   selectedIndex = 0;
+  currentFaceIndex = 0;
 
   fetchTaskHandle = nullptr;
   pendingFetch = false;
@@ -143,7 +147,7 @@ bool MtgCardActivity::fetchCardData() {
     return false;
   }
 
-  std::string imageUrl;
+  std::vector<std::string> imageUrls;
   std::string cardName;
   {
     HalFile jsonFile;
@@ -153,12 +157,11 @@ bool MtgCardActivity::fetchCardData() {
       return false;
     }
 
-    // Updated filter to strictly keep memory footprints small
-    // and grab the high-quality PNGs
     JsonDocument filter;
     filter["name"] = true;
     filter["image_uris"]["png"] = true;
     filter["card_faces"][0]["image_uris"]["png"] = true;
+    filter["card_faces"][1]["image_uris"]["png"] = true;
 
     JsonDocument doc;
     DeserializationError err = deserializeJson(doc, jsonFile, DeserializationOption::Filter(filter));
@@ -174,15 +177,19 @@ bool MtgCardActivity::fetchCardData() {
       cardName = doc["name"].as<std::string>();
     }
 
-    if (doc["image_uris"]["png"].is<const char*>()) {
-      imageUrl = doc["image_uris"]["png"].as<std::string>();
-    } else if (doc["card_faces"][0]["image_uris"]["png"].is<const char*>()) {
-      // Double-faced cards keep their images under the first face.
-      imageUrl = doc["card_faces"][0]["image_uris"]["png"].as<std::string>();
+    if (doc["card_faces"].is<JsonArray>()) {
+      for (JsonObject face : doc["card_faces"].as<JsonArray>()) {
+        if (face["image_uris"]["png"].is<const char*>()) {
+          imageUrls.push_back(face["image_uris"]["png"].as<std::string>());
+        }
+      }
+    }
+    if (imageUrls.empty() && doc["image_uris"]["png"].is<const char*>()) {
+      imageUrls.push_back(doc["image_uris"]["png"].as<std::string>());
     }
   }
 
-  if (imageUrl.empty()) {
+  if (imageUrls.empty()) {
     errorMessage = "That card has no image available.";
     return false;
   }
@@ -191,48 +198,68 @@ bool MtgCardActivity::fetchCardData() {
   }
 
   const std::string sanitizedName = sanitizeFilename(cardName);
-  const std::string bmpPath = cardBmpPath(sanitizedName);
+  bgBmpPaths.clear();
 
-  // Already cached from a previous search - no need to re-download.
-  if (Storage.exists(bmpPath.c_str())) {
+  // Check if all faces are already cached
+  bool allCached = true;
+  for (size_t i = 0; i < imageUrls.size(); ++i) {
+    std::string bmpPath = (i == 0) ? cardBmpPath(sanitizedName)
+                                   : std::string(APP_DIR) + "/" + sanitizedName + "_face" + std::to_string(i + 1) + ".bmp";
+    if (!Storage.exists(bmpPath.c_str())) {
+      allCached = false;
+      break;
+    }
+  }
+
+  if (allCached) {
     bgCardName = cardName;
-    bgBmpPath = bmpPath;
+    for (size_t i = 0; i < imageUrls.size(); ++i) {
+      bgBmpPaths.push_back((i == 0) ? cardBmpPath(sanitizedName)
+                                    : std::string(APP_DIR) + "/" + sanitizedName + "_face" + std::to_string(i + 1) + ".bmp");
+    }
     return true;
   }
 
-  const std::string pngTempPath = std::string(APP_DIR) + "/.card.png";
-  result = HttpDownloader::downloadToFile(imageUrl, pngTempPath, nullptr, nullptr, "", "", nullptr, nullptr, nullptr,
-                                          nullptr, "*/*");
-  if (result != HttpDownloader::OK) {
-    LOG_ERR("MTG", "Card image download failed (%d): %s", static_cast<int>(result), imageUrl.c_str());
-    errorMessage = "Failed to download the card image.";
-    Storage.remove(pngTempPath.c_str());
-    return false;
-  }
+  // Download and process each face image
+  for (size_t i = 0; i < imageUrls.size(); ++i) {
+    std::string bmpPath = (i == 0) ? cardBmpPath(sanitizedName)
+                                   : std::string(APP_DIR) + "/" + sanitizedName + "_face" + std::to_string(i + 1) + ".bmp";
+    const std::string pngTempPath = std::string(APP_DIR) + "/.card_temp.png";
 
-  bool success = false;
-  {
-    HalFile pngFile;
-    if (Storage.openFileForRead("MTG", pngTempPath, pngFile)) {
-      HalFile bmpFile;
-      if (Storage.openFileForWrite("MTG", bmpPath, bmpFile)) {
-        success = PngToBmpConverter::pngFileToBmpStreamWithSize(pngFile, bmpFile, renderer.getScreenWidth(),
-                                                                renderer.getScreenHeight());
-        bmpFile.close();
-      }
-      pngFile.close();
+    result = HttpDownloader::downloadToFile(imageUrls[i], pngTempPath, nullptr, nullptr, "", "", nullptr, nullptr, nullptr,
+                                            nullptr, "*/*");
+    if (result != HttpDownloader::OK) {
+      LOG_ERR("MTG", "Card image download failed (%d): %s", static_cast<int>(result), imageUrls[i].c_str());
+      errorMessage = "Failed to download the card image.";
+      Storage.remove(pngTempPath.c_str());
+      return false;
     }
-  }
-  Storage.remove(pngTempPath.c_str());
 
-  if (!success) {
-    Storage.remove(bmpPath.c_str());
-    errorMessage = "Failed to process the card image.";
-    return false;
+    bool success = false;
+    {
+      HalFile pngFile;
+      if (Storage.openFileForRead("MTG", pngTempPath, pngFile)) {
+        HalFile bmpFile;
+        if (Storage.openFileForWrite("MTG", bmpPath, bmpFile)) {
+          success = PngToBmpConverter::pngFileToBmpStreamWithSize(pngFile, bmpFile, renderer.getScreenWidth(),
+                                                                  renderer.getScreenHeight());
+          bmpFile.close();
+        }
+        pngFile.close();
+      }
+    }
+    Storage.remove(pngTempPath.c_str());
+
+    if (!success) {
+      Storage.remove(bmpPath.c_str());
+      errorMessage = "Failed to process the card image.";
+      return false;
+    }
+
+    bgBmpPaths.push_back(bmpPath);
   }
 
   bgCardName = cardName;
-  bgBmpPath = bmpPath;
   return true;
 }
 
@@ -287,7 +314,8 @@ void MtgCardActivity::loop() {
     }
     if (!backgroundFetchFailed) {
       currentCardName = bgCardName;
-      currentBmpPath = bgBmpPath;
+      currentBmpPaths = bgBmpPaths;
+      currentFaceIndex = 0;
       errorMessage.clear();
       state = MtgCardState::CardView;
     } else {
@@ -319,6 +347,20 @@ void MtgCardActivity::loop() {
       finish();
     }
     return;
+  }
+
+  if (state == MtgCardState::CardView) {
+    if (currentBmpPaths.size() > 1) {
+      if (mappedInput.wasReleased(MappedInputManager::Button::Left)) {
+        currentFaceIndex = (currentFaceIndex - 1 + currentBmpPaths.size()) % currentBmpPaths.size();
+        requestUpdate();
+        return;
+      } else if (mappedInput.wasReleased(MappedInputManager::Button::Right)) {
+        currentFaceIndex = (currentFaceIndex + 1) % currentBmpPaths.size();
+        requestUpdate();
+        return;
+      }
+    }
   }
 
   if (state == MtgCardState::CardList) {
@@ -365,7 +407,19 @@ void MtgCardActivity::loop() {
       } else {
         const std::string& sanitizedName = cachedCards[selectedIndex - 1];
         currentCardName = sanitizedName;
-        currentBmpPath = cardBmpPath(sanitizedName);
+        currentBmpPaths.clear();
+        currentBmpPaths.push_back(cardBmpPath(sanitizedName));
+
+        // Load any additional cached face files for this card
+        for (int i = 2; i <= 5; ++i) {
+          std::string facePath = std::string(APP_DIR) + "/" + sanitizedName + "_face" + std::to_string(i) + ".bmp";
+          if (Storage.exists(facePath.c_str())) {
+            currentBmpPaths.push_back(facePath);
+          } else {
+            break;
+          }
+        }
+        currentFaceIndex = 0;
         state = MtgCardState::CardView;
         requestUpdate();
       }
@@ -380,37 +434,41 @@ void MtgCardActivity::render(RenderLock&&) {
 
   if (state == MtgCardState::CardView) {
     renderer.clearScreen();
-    HalFile file;
-    if (Storage.openFileForRead("MTG", currentBmpPath, file)) {
-      Bitmap bitmap(file, true);
-      if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        LOG_DBG("MTG", "Card BMP dimensions: %dx%d (screen %dx%d)", bitmap.getWidth(), bitmap.getHeight(), pageWidth,
-                pageHeight);
-        int x, y;
-        if (bitmap.getWidth() > pageWidth || bitmap.getHeight() > pageHeight) {
-          float ratio = static_cast<float>(bitmap.getWidth()) / static_cast<float>(bitmap.getHeight());
-          const float screenRatio = static_cast<float>(pageWidth) / static_cast<float>(pageHeight);
-          if (ratio > screenRatio) {
-            x = 0;
-            y = std::round((static_cast<float>(pageHeight) - static_cast<float>(pageWidth) / ratio) / 2);
+    if (!currentBmpPaths.empty() && currentFaceIndex < currentBmpPaths.size()) {
+      HalFile file;
+      if (Storage.openFileForRead("MTG", currentBmpPaths[currentFaceIndex], file)) {
+        Bitmap bitmap(file, true);
+        if (bitmap.parseHeaders() == BmpReaderError::Ok) {
+          LOG_DBG("MTG", "Card BMP dimensions: %dx%d (screen %dx%d)", bitmap.getWidth(), bitmap.getHeight(), pageWidth,
+                  pageHeight);
+          int x, y;
+          if (bitmap.getWidth() > pageWidth || bitmap.getHeight() > pageHeight) {
+            float ratio = static_cast<float>(bitmap.getWidth()) / static_cast<float>(bitmap.getHeight());
+            const float screenRatio = static_cast<float>(pageWidth) / static_cast<float>(pageHeight);
+            if (ratio > screenRatio) {
+              x = 0;
+              y = std::round((static_cast<float>(pageHeight) - static_cast<float>(pageWidth) / ratio) / 2);
+            } else {
+              x = std::round((static_cast<float>(pageWidth) - static_cast<float>(pageHeight) * ratio) / 2);
+              y = 0;
+            }
           } else {
-            x = std::round((static_cast<float>(pageWidth) - static_cast<float>(pageHeight) * ratio) / 2);
-            y = 0;
+            x = (pageWidth - bitmap.getWidth()) / 2;
+            y = (pageHeight - bitmap.getHeight()) / 2;
           }
+          renderer.drawBitmap(bitmap, x, y, pageWidth, pageHeight, 0, 0);
         } else {
-          x = (pageWidth - bitmap.getWidth()) / 2;
-          y = (pageHeight - bitmap.getHeight()) / 2;
+          renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2, "Invalid card image.");
         }
-        renderer.drawBitmap(bitmap, x, y, pageWidth, pageHeight, 0, 0);
+        file.close();
       } else {
-        renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2, "Invalid card image.");
+        renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2, "Could not open card image.");
       }
-      file.close();
-    } else {
-      renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2, "Could not open card image.");
     }
 
-    const auto labels = mappedInput.mapLabels(tr(STR_BACK), nullptr, nullptr, nullptr);
+    const auto labels = mappedInput.mapLabels(tr(STR_BACK), nullptr,
+                                              (currentBmpPaths.size() > 1 ? "< Prev" : nullptr),
+                                              (currentBmpPaths.size() > 1 ? "Next >" : nullptr));
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
     return;
