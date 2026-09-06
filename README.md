@@ -17,7 +17,7 @@ Download the latest release: https://github.com/woolium-dev/crosspoint-reader-ap
 
 Go to the Crosspoint Web installer: [Web Flasher](https://crosspointreader.com/#flash-tools)
 
-Select your device (only Xteink X3/X4 are supported)
+Select your device (only Xteink X3/X4 are supported) (X4 support not yet confirmed but *should* work)
 
 Click "custom .bin" and upload your .bin file that you just downloaded, and click Flash.
 
