@@ -4,7 +4,7 @@ This is an app that basically grabs the image of any card you look up on Scryfal
 
 Card image preview:
 
-<img src="https://github.com/user-attachments/files/31880223/screenshot-116477.bmp" width="25%" alt="Card Screenshot">
+<img src="https://github.com/user-attachments/files/31880223/screenshot-116477.bmp" width="35%" alt="Card Screenshot">
 
 This app will also let you access cards you have downloaded.
 
