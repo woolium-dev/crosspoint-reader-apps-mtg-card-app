@@ -13,7 +13,7 @@ This app will also let you access cards you have downloaded.
 
 Web installer (simple) 
 
-Grab the .bin from here: https://github.com/woolium-dev/crosspoint-reader-apps-mtg-card-app/blob/master/bin/crosspoint-apps.bin
+Download the latest release: https://github.com/woolium-dev/crosspoint-reader-apps-mtg-card-app/releases/
 
 Go to the Crosspoint Web installer: [Web Flasher](https://crosspointreader.com/#flash-tools)
 
