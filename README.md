@@ -4,9 +4,7 @@ This is an app that basically grabs the image of any card you look up on Scryfal
 
 Card image preview:
 
-
-![Card Screenshot](https://github.com/user-attachments/files/31880223/screenshot-116477.bmp)
-
+<img src="https://github.com/user-attachments/files/31880223/screenshot-116477.bmp" width="50%" alt="Card Screenshot">
 
 This app will also let you access cards you have downloaded.
 
@@ -14,6 +12,6 @@ This app will also let you access cards you have downloaded.
 ![main menu screen with previously downloaded cards being shown](https://github.com/user-attachments/files/31880230/screenshot-135185.bmp)
 
 
-# BUILDING
-Git clone this repository and run 
-```pio run -t upload```.
+**How to install/how to build**
+Download this repository, then do ```pio run -t upload```.
+
