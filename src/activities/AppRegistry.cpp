@@ -3,6 +3,7 @@
 #include "activities/chess/ChessActivity.h"
 #include "activities/dice/DiceActivity.h"
 #include "activities/duckduckgo/DuckDuckGoActivity.h"
+#include "activities/mtgcard/MtgCardActivity.h"
 #include "activities/rss/RssActivity.h"
 #include "activities/sudoku/SudokuActivity.h"
 #include "activities/weather/WeatherActivity.h"
@@ -90,6 +91,13 @@ AppRegistry::AppRegistry() {
       std::make_unique<App>("Wikipedia", UIIcon::Wikipedia,
                             [](GfxRenderer &r, MappedInputManager &i) {
                               return std::make_unique<WikipediaActivity>(r, i);
+                            }));
+
+  // MTG Card Search App
+  apps.push_back(
+      std::make_unique<App>("MTG Cards", UIIcon::Book,
+                            [](GfxRenderer &r, MappedInputManager &i) {
+                              return std::make_unique<MtgCardActivity>(r, i);
                             }));
 
   // RSS Feed App

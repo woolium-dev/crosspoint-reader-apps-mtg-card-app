@@ -1,0 +1,8 @@
+# CrossPoint MTG Card Scryfall TLS fix
+#
+# Enable the ESP-IDF certificate bundle and allow it to select the
+# appropriate CA when a server presents a cross-signed certificate chain.
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE=y
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL=y
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_CROSS_SIGNED_VERIFY=y
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEPRECATED_LIST=y

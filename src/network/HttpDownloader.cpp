@@ -19,14 +19,14 @@ namespace {
 // non-fatal: the headers we read (Location, Content-Length) come first and
 // survive. Smaller keeps contiguous heap free while WiFi and TLS are up. TX
 // only carries our GET; the body streams in READ_CHUNK pieces.
-constexpr int HTTP_RX_BUF = 4096;
-constexpr int HTTP_TX_BUF = 1024;
+constexpr int HTTP_RX_BUF = 2048;
+constexpr int HTTP_TX_BUF = 512;
 // Per-socket-op timeout. Some OPDS download endpoints are slow to send headers
 // (>15s) and chunked catalogs stall mid-body, so 15s killed them. 60s gives
 // slow servers room. esp_http_client's timeout_ms is uint32, so unlike Arduino
 // HTTPClient's uint16 setTimeout it doesn't silently truncate.
 constexpr int HTTP_TIMEOUT_MS = 60000;
-constexpr size_t READ_CHUNK = 2048;
+constexpr size_t READ_CHUNK = 1024;
 
 struct Sink {
   std::function<bool(const uint8_t*, size_t)> write;  // returns false to abort the transfer
@@ -77,7 +77,8 @@ std::string resolveRedirectUrl(const std::string& base, const std::string& redir
 // large/slow files and surfaces a short read directly.
 HttpDownloader::DownloadError runGet(const std::string& url, const std::string& username, const std::string& password,
                                      Sink& sink, std::string* outContentType = nullptr, std::string* outFinalUrl = nullptr,
-                                     std::string* outErrorDetail = nullptr) {
+                                     std::string* outErrorDetail = nullptr, const char* trustedCertPem = nullptr,
+                                     const char* acceptHeader = nullptr) {
   std::string currentUrl = url;
   int hop = 0;
   esp_http_client_handle_t client = nullptr;
@@ -91,9 +92,16 @@ HttpDownloader::DownloadError runGet(const std::string& url, const std::string& 
     config.buffer_size = HTTP_RX_BUF;
     config.buffer_size_tx = HTTP_TX_BUF;
     config.timeout_ms = HTTP_TIMEOUT_MS;
-    // Verify HTTPS against the bundled CA roots.
-    config.crt_bundle_attach = esp_crt_bundle_attach;
-    config.keep_alive_enable = true;
+    // Normal requests use the shared Mozilla CA bundle. A caller can opt into
+    // pinning a specific root certificate instead, e.g. when its server
+    // chains through a CA that isn't in the firmware's bundle.
+    if (trustedCertPem != nullptr) {
+      LOG_DBG("HTTP", "TLS: using caller-provided trusted cert for %s", currentUrl.c_str());
+      config.cert_pem = trustedCertPem;
+    } else {
+      config.crt_bundle_attach = esp_crt_bundle_attach;
+    }
+    config.keep_alive_enable = false;
 
     client = esp_http_client_init(&config);
     if (!client) {
@@ -103,6 +111,9 @@ HttpDownloader::DownloadError runGet(const std::string& url, const std::string& 
     }
 
     esp_http_client_set_header(client, "User-Agent", "CrossPointReader/1.0 (https://github.com/zakerytclarke/crosspoint-reader-apps)");
+    if (acceptHeader != nullptr) {
+      esp_http_client_set_header(client, "Accept", acceptHeader);
+    }
     if (!username.empty() && !password.empty()) {
       const std::string credentials = username + ":" + password;
       const String header = "Basic " + base64::encode(credentials.c_str());
@@ -157,7 +168,22 @@ HttpDownloader::DownloadError runGet(const std::string& url, const std::string& 
 
   if (status != 200) {
     LOG_ERR("HTTP", "unexpected status: %d", status);
-    if (outErrorDetail) *outErrorDetail = "HTTP Status: " + std::to_string(status);
+
+    // Keep a small portion of the response body for debugging API errors.
+    // Scryfall returns useful JSON explaining why a 400/403 was generated.
+    char errorBody[1025] = {};
+    const int bodyRead = esp_http_client_read(client, errorBody, sizeof(errorBody) - 1);
+    if (bodyRead > 0) {
+      errorBody[bodyRead] = '\0';
+      LOG_ERR("HTTP", "Error response body (%d bytes): %s", bodyRead, errorBody);
+      if (outErrorDetail) {
+        *outErrorDetail = "HTTP Status: " + std::to_string(status) + " Body: " + errorBody;
+      }
+    } else {
+      LOG_ERR("HTTP", "No error response body received");
+      if (outErrorDetail) *outErrorDetail = "HTTP Status: " + std::to_string(status);
+    }
+
     esp_http_client_cleanup(client);
     return HttpDownloader::HTTP_ERROR;
   }
@@ -239,7 +265,8 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
                                                              ProgressCallback progress, bool* cancelFlag,
                                                              const std::string& username, const std::string& password,
                                                              std::string* outContentType, std::string* outFinalUrl,
-                                                             std::string* outErrorDetail) {
+                                                             std::string* outErrorDetail, const char* trustedCertPem,
+                                                             const char* acceptHeader) {
   LOG_DBG("HTTP", "Downloading: %s -> %s", url.c_str(), destPath.c_str());
 
   {
@@ -265,7 +292,8 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
     return file.write(data, len) == len;
   };
 
-  const DownloadError result = runGet(url, username, password, sink, outContentType, outFinalUrl, outErrorDetail);
+  const DownloadError result =
+      runGet(url, username, password, sink, outContentType, outFinalUrl, outErrorDetail, trustedCertPem, acceptHeader);
   // Close before any remove() on the same path; DESTRUCTOR_CLOSES_FILE would
   // otherwise close only after the remove.
   {

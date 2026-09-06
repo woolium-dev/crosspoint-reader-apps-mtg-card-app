@@ -40,10 +40,22 @@ class HttpDownloader {
 
   /**
    * Download a file to the SD card with optional credentials.
+   *
+   * trustedCertPem is an escape hatch for callers whose server chains to a CA
+   * that isn't in the firmware's certificate bundle: pass a PEM-encoded root
+   * certificate to trust it instead of (not in addition to) the shared
+   * bundle. Leave null (the default) to use the normal shared CA bundle,
+   * which is correct for the vast majority of callers.
+   *
+   * acceptHeader sets an explicit Accept header (e.g. "application/json",
+   * "*\/*"). Leave null (the default) to send no Accept header at all, which
+   * matches prior behavior. Some APIs (Scryfall included) reject requests
+   * that omit it entirely.
    */
   static DownloadError downloadToFile(const std::string& url, const std::string& destPath,
                                       ProgressCallback progress = nullptr, bool* cancelFlag = nullptr,
                                       const std::string& username = "", const std::string& password = "",
                                       std::string* outContentType = nullptr, std::string* outFinalUrl = nullptr,
-                                      std::string* outErrorDetail = nullptr);
+                                      std::string* outErrorDetail = nullptr, const char* trustedCertPem = nullptr,
+                                      const char* acceptHeader = nullptr);
 };
