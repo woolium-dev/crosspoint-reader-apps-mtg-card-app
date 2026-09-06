@@ -6,12 +6,12 @@
 #include <base64.h>
 #include <esp_crt_bundle.h>
 #include <esp_http_client.h>
-#include "activities/RenderLock.h"
 
 #include <cstring>
 #include <functional>
 #include <string>
 
+#include "activities/RenderLock.h"
 
 namespace {
 // RX holds the response headers. 4096 fits real OPDS servers; GitHub's release
@@ -76,9 +76,9 @@ std::string resolveRedirectUrl(const std::string& base, const std::string& redir
 // that ends early as ESP_ERR_HTTP_INCOMPLETE_DATA, whereas the read loop streams
 // large/slow files and surfaces a short read directly.
 HttpDownloader::DownloadError runGet(const std::string& url, const std::string& username, const std::string& password,
-                                     Sink& sink, std::string* outContentType = nullptr, std::string* outFinalUrl = nullptr,
-                                     std::string* outErrorDetail = nullptr, const char* trustedCertPem = nullptr,
-                                     const char* acceptHeader = nullptr) {
+                                     Sink& sink, std::string* outContentType = nullptr,
+                                     std::string* outFinalUrl = nullptr, std::string* outErrorDetail = nullptr,
+                                     const char* trustedCertPem = nullptr, const char* acceptHeader = nullptr) {
   std::string currentUrl = url;
   int hop = 0;
   esp_http_client_handle_t client = nullptr;
@@ -110,7 +110,8 @@ HttpDownloader::DownloadError runGet(const std::string& url, const std::string& 
       return HttpDownloader::HTTP_ERROR;
     }
 
-    esp_http_client_set_header(client, "User-Agent", "CrossPointReader/1.0 (https://github.com/zakerytclarke/crosspoint-reader-apps)");
+    esp_http_client_set_header(client, "User-Agent",
+                               "CrossPointReader/1.0 (https://github.com/zakerytclarke/crosspoint-reader-apps)");
     if (acceptHeader != nullptr) {
       esp_http_client_set_header(client, "Accept", acceptHeader);
     }

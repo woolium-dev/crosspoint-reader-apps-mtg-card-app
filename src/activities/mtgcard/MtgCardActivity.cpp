@@ -55,7 +55,9 @@ std::string urlEncode(const std::string& value) {
   return escaped;
 }
 
-std::string cardBmpPath(const std::string& sanitizedName) { return std::string(APP_DIR) + "/" + sanitizedName + ".bmp"; }
+std::string cardBmpPath(const std::string& sanitizedName) {
+  return std::string(APP_DIR) + "/" + sanitizedName + ".bmp";
+}
 
 static void mtgFetchTaskFunc(void* param) {
   auto* activity = static_cast<MtgCardActivity*>(param);
@@ -150,8 +152,8 @@ bool MtgCardActivity::fetchCardData() {
       errorMessage = "Failed to read card data.";
       return false;
     }
-    
-    // Updated filter to strictly keep memory footprints small 
+
+    // Updated filter to strictly keep memory footprints small
     // and grab the high-quality PNGs
     JsonDocument filter;
     filter["name"] = true;
@@ -214,8 +216,8 @@ bool MtgCardActivity::fetchCardData() {
     if (Storage.openFileForRead("MTG", pngTempPath, pngFile)) {
       HalFile bmpFile;
       if (Storage.openFileForWrite("MTG", bmpPath, bmpFile)) {
-        success = PngToBmpConverter::pngFileToBmpStreamWithSize(
-            pngFile, bmpFile, renderer.getScreenWidth(), renderer.getScreenHeight());
+        success = PngToBmpConverter::pngFileToBmpStreamWithSize(pngFile, bmpFile, renderer.getScreenWidth(),
+                                                                renderer.getScreenHeight());
         bmpFile.close();
       }
       pngFile.close();
@@ -337,8 +339,7 @@ void MtgCardActivity::loop() {
       requestUpdate();
     } else if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
       if (selectedIndex == 0) {
-        auto keyboard =
-            std::make_unique<KeyboardEntryActivity>(renderer, mappedInput, "MTG Card Name", "", 60);
+        auto keyboard = std::make_unique<KeyboardEntryActivity>(renderer, mappedInput, "MTG Card Name", "", 60);
         startActivityForResult(std::move(keyboard), [this](const ActivityResult& result) {
           if (!result.isCancelled) {
             auto keyboardResult = std::get_if<KeyboardResult>(&result.data);
@@ -383,8 +384,8 @@ void MtgCardActivity::render(RenderLock&&) {
     if (Storage.openFileForRead("MTG", currentBmpPath, file)) {
       Bitmap bitmap(file, true);
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        LOG_DBG("MTG", "Card BMP dimensions: %dx%d (screen %dx%d)",
-                bitmap.getWidth(), bitmap.getHeight(), pageWidth, pageHeight);
+        LOG_DBG("MTG", "Card BMP dimensions: %dx%d (screen %dx%d)", bitmap.getWidth(), bitmap.getHeight(), pageWidth,
+                pageHeight);
         int x, y;
         if (bitmap.getWidth() > pageWidth || bitmap.getHeight() > pageHeight) {
           float ratio = static_cast<float>(bitmap.getWidth()) / static_cast<float>(bitmap.getHeight());
