@@ -10,6 +10,6 @@ This app will also let you access cards you have downloaded.
 
 <img src="https://github.com/user-attachments/files/31880230/screenshot-135185.bmp" width="35%" alt="Menu screenshot">
 
-**How to install/how to build**
-Download this repository, then do ```pio run -t upload```.
+# How to install
+Git-Clone this repo and run ```pio -t upload```
 
