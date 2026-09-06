@@ -7,4 +7,4 @@ Card image preview:
 
 
 This app will also let you access cards you have downloaded.
-https://github.com/user-attachments/files/31880230/screenshot-135185.bmp
+![main menu screen with previously downloaded cards being shown](https://github.com/user-attachments/files/31880230/screenshot-135185.bmp)
