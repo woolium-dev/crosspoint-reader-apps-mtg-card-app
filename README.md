@@ -10,4 +10,8 @@ This app will also let you access cards you have downloaded.
 <img src="https://github.com/user-attachments/files/31880230/screenshot-135185.bmp" width="35%" alt="Menu screenshot">
 
 **How to install:**
-Git clone this repo and run ```pio run -t upload```
+Web installer (simple) 
+Grab the .bin from here: https://github.com/woolium-dev/crosspoint-reader-apps-mtg-card-app/blob/master/bin/crosspoint-apps.bin
+Go to the Crosspoint Web installer: [Web Flasher](https://crosspointreader.com/#flash-tools)
+Select your device (only Xteink X3/X4 are supported)
+Click "custom .bin" and upload your .bin file that you just downloaded, and click Flash.
